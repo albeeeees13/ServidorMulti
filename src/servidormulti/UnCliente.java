@@ -1,4 +1,4 @@
-ppackage servidormulti;
+package servidormulti;
 
 import java.io.*;
 import java.net.Socket;
@@ -27,14 +27,14 @@ public class UnCliente implements Runnable {
             while (true) {
                 mensaje = entrada.readUTF();
 
-                // Si el cliente quiere salir
+
                 if (mensaje.equalsIgnoreCase("salir")) {
                     salida.writeUTF("Cerrando conexión...");
                     socket.close();
                     break;
                 }
 
-                // Si no está autenticado y ya mandó 3 mensajes
+
                 if (!autenticado && mensajesEnviados >= 3) {
                     salida.writeUTF("Has alcanzado el límite de 3 mensajes. Escribe 'registrar' o 'login' para continuar.");
                     continue;
@@ -42,7 +42,7 @@ public class UnCliente implements Runnable {
 
                 mensajesEnviados++;
 
-                // Mensaje privado
+
                 if (mensaje.startsWith("@")) {
                     String[] partes = mensaje.split(" ", 2);
                     String aQuien = partes[0].substring(1);
