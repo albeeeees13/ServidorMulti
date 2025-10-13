@@ -19,13 +19,13 @@ public class UnCliente implements Runnable {
     }
 
     @Override
+
     public void run() {
         try {
             salida.writeUTF("Bienvenido al servidor. Puedes mandar 3 mensajes antes de registrarte o iniciar sesión.");
 
             while (true) {
-                String mensaje = entrada.readUTF();
-
+                String mensaje = entrada.readUTF().trim();
 
                 if (mensaje.equalsIgnoreCase("salir")) {
                     salida.writeUTF("Cerrando conexión...");
@@ -33,25 +33,24 @@ public class UnCliente implements Runnable {
                     break;
                 }
 
-
-                if (!autenticado && mensajesEnviados >= 3) {
-                    salida.writeUTF("Has alcanzado el límite de 3 mensajes. Escribe 'registrar' o 'login' para continuar.");
-                    continue;
-                }
-
-
+                // 🔹 si el usuario quiere registrar o iniciar sesión, se permite aunque tenga el límite
                 if (mensaje.equalsIgnoreCase("registrar")) {
                     registrarUsuario();
                     continue;
                 }
-
 
                 if (mensaje.equalsIgnoreCase("login")) {
                     iniciarSesion();
                     continue;
                 }
 
+                // 🔹 solo aplica el límite si NO está autenticado y no está intentando registrar/login
+                if (!autenticado && mensajesEnviados >= 3) {
+                    salida.writeUTF("Has alcanzado el límite de 3 mensajes. Escribe 'registrar' o 'login' para continuar.");
+                    continue;
+                }
 
+                // 🔹 permitir mensaje
                 if (autenticado || mensajesEnviados < 3) {
                     mensajesEnviados++;
 
@@ -74,7 +73,6 @@ public class UnCliente implements Runnable {
                             }
                         }
                     }
-
                 } else {
                     salida.writeUTF("No puedes mandar más mensajes sin registrarte o iniciar sesión.");
                 }
@@ -85,9 +83,8 @@ public class UnCliente implements Runnable {
         }
     }
 
-    // ----------------------------------------------------------
-    // MÉTODOS DE LOGIN Y REGISTRO
-    // ----------------------------------------------------------
+
+
 
     private void registrarUsuario() throws IOException {
         salida.writeUTF("Escribe un nombre de usuario:");
