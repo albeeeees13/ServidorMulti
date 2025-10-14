@@ -33,7 +33,7 @@ public class UnCliente implements Runnable {
                     break;
                 }
 
-                // 🔹 si el usuario quiere registrar o iniciar sesión, se permite aunque tenga el límite
+
                 if (mensaje.equalsIgnoreCase("registrar")) {
                     registrarUsuario();
                     continue;
@@ -44,7 +44,7 @@ public class UnCliente implements Runnable {
                     continue;
                 }
 
-                // 🔹 solo aplica el límite si NO está autenticado y no está intentando registrar/login
+
                 if (!autenticado && mensajesEnviados >= 3) {
                     salida.writeUTF("Has alcanzado el límite de 3 mensajes. Escribe 'registrar' o 'login' para continuar.");
                     continue;
