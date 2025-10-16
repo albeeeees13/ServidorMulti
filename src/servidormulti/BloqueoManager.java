@@ -1,65 +1,92 @@
 package servidormulti;
 
-import java.io.*;
-import java.util.*;
+import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BloqueoManager {
-    private static final String ARCHIVO_BLOQUEOS = "bloqueos.txt";
-    private static final Map<String, Set<String>> bloqueos = new HashMap<>();
+
+
+    private static Connection getConnection() throws SQLException {
+        return ConexionBD.getConnection();
+    }
+
 
     static {
-        cargarBloqueos();
+        try (Connection conn = getConnection();
+             Statement st = conn.createStatement()) {
+            String sql = """
+                CREATE TABLE IF NOT EXISTS bloqueos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    quien TEXT NOT NULL,
+                    a_quien TEXT NOT NULL
+                )
+                """;
+            st.execute(sql);
+        } catch (SQLException e) {
+            System.err.println("Error al crear tabla de bloqueos: " + e.getMessage());
+        }
     }
-    public static synchronized void bloquear(String quien, String aQuien) throws IOException {
+
+
+    public static synchronized void bloquear(String quien, String aQuien) throws SQLException {
         if (quien.equalsIgnoreCase(aQuien)) {
-            throw new IOException("No puedes bloquearte a ti mismo.");
+            throw new SQLException("No puedes bloquearte a ti mismo.");
         }
 
-        bloqueos.putIfAbsent(quien, new HashSet<>());
+
         if (!ServidorMulti.clientes.containsKey(aQuien)) {
-            throw new IOException("El usuario '" + aQuien + "' no existe.");
+            throw new SQLException("El usuario '" + aQuien + "' no existe.");
         }
 
-        if (bloqueos.get(quien).contains(aQuien)) {
-            throw new IOException("Ya tienes bloqueado a " + aQuien);
+        if (estaBloqueado(quien, aQuien)) {
+            throw new SQLException("Ya tienes bloqueado a " + aQuien);
         }
 
-        bloqueos.get(quien).add(aQuien);
-        guardarBloqueos();
+        String sql = "INSERT INTO bloqueos (quien, a_quien) VALUES (?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, quien);
+            ps.setString(2, aQuien);
+            ps.executeUpdate();
+        }
     }
 
-    public static synchronized boolean estaBloqueado(String receptor, String emisor) {
-        return bloqueos.containsKey(receptor) && bloqueos.get(receptor).contains(emisor);
+
+    public static synchronized boolean estaBloqueado(String receptor, String emisor) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM bloqueos WHERE quien = ? AND a_quien = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, receptor);
+            ps.setString(2, emisor);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() && rs.getInt(1) > 0;
+        }
     }
 
-    public static synchronized Set<String> verBloqueados(String quien) {
-        return bloqueos.getOrDefault(quien, new HashSet<>());
-    }
 
-    private static void cargarBloqueos() {
-        File archivo = new File(ARCHIVO_BLOQUEOS);
-        if (!archivo.exists()) return;
-
-        try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
-            String linea;
-            while ((linea = br.readLine()) != null) {
-                String[] partes = linea.split(":");
-                if (partes.length == 2) {
-                    bloqueos.putIfAbsent(partes[0], new HashSet<>());
-                    bloqueos.get(partes[0]).add(partes[1]);
-                }
+    public static synchronized Set<String> verBloqueados(String quien) throws SQLException {
+        Set<String> bloqueados = new HashSet<>();
+        String sql = "SELECT a_quien FROM bloqueos WHERE quien = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, quien);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                bloqueados.add(rs.getString("a_quien"));
             }
-        } catch (IOException ignored) {}
+        }
+        return bloqueados;
     }
 
-    private static void guardarBloqueos() throws IOException {
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(ARCHIVO_BLOQUEOS))) {
-            for (Map.Entry<String, Set<String>> entry : bloqueos.entrySet()) {
-                for (String bloqueado : entry.getValue()) {
-                    bw.write(entry.getKey() + ":" + bloqueado);
-                    bw.newLine();
-                }
-            }
+
+    public static synchronized void desbloquear(String quien, String aQuien) throws SQLException {
+        String sql = "DELETE FROM bloqueos WHERE quien = ? AND a_quien = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, quien);
+            ps.setString(2, aQuien);
+            ps.executeUpdate();
         }
     }
 }
