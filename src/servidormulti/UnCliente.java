@@ -61,15 +61,16 @@ public class UnCliente implements Runnable {
                     }
                     continue;
                 }
-                // -----------------------------
 
-                // Restricción de mensajes
+
+
+
                 if (username == null && mensajesEnviados >= 3) {
                     salida.writeUTF("Has alcanzado el límite de 3 mensajes. Escribe 'registrar' o 'login' para continuar.");
                     continue;
                 }
 
-                // 🔹 Lógica de Mensajería
+
                 if (username != null || mensajesEnviados < 3) {
                     mensajesEnviados++;
 
