@@ -264,6 +264,151 @@ public class UnCliente implements Runnable {
         }
     }
 
+    private void notificarOponente(String oponenteUsername, String mensaje) {
+        UnCliente oponenteCliente = buscarClientePorNombre(oponenteUsername);
+        if (oponenteCliente != null) {
+            try {
+                oponenteCliente.salida.writeUTF(mensaje);
+            } catch (IOException ignored) {}
+        }
+    }
+
+    private void manejarComandoJugar(String oponente) throws IOException, SQLException {
+        if (oponente.equalsIgnoreCase(username)) {
+            salida.writeUTF("❌ No puedes invitarte a ti mismo.");
+            return;
+        }
+        if (this.juegoActual != null) {
+            salida.writeUTF("❌ Ya estás en un juego contra " + juegoActual.getOponente(username) + ".");
+            return;
+        }
+
+        if (!AuthManager.usuarioExiste(oponente)) {
+            salida.writeUTF("❌ El usuario '" + oponente + "' no está registrado.");
+            return;
+        }
+
+        UnCliente oponenteCliente = buscarClientePorNombre(oponente);
+        if (oponenteCliente == null || oponenteCliente.juegoActual != null) {
+            salida.writeUTF("❌ El usuario '" + oponente + "' no está conectado o ya está jugando.");
+            return;
+        }
+
+        // Crear la invitación
+        ServidorMulti.invitacionesPendientes.put(oponente, username);
+        salida.writeUTF("✅ Invitación enviada a " + oponente + ". Esperando respuesta...");
+        oponenteCliente.salida.writeUTF("\n🔔 ¡Has sido retado al GATO por " + username + "! Escribe /aceptar para empezar.");
+    }
+
+    private void manejarComandoAceptar() throws IOException {
+        String retador = ServidorMulti.invitacionesPendientes.remove(username);
+        if (retador == null) {
+            salida.writeUTF("❌ No tienes invitaciones pendientes.");
+            return;
+        }
+
+        UnCliente retadorCliente = buscarClientePorNombre(retador);
+        if (retadorCliente == null || retadorCliente.juegoActual != null) {
+            salida.writeUTF("❌ El retador se desconectó o ya está jugando.");
+            notificarOponente(retador, "❌ El retado se desconectó o ya no está disponible.");
+            return;
+        }
+
+        // Crear el juego
+        JuegoGato nuevoJuego = new JuegoGato(retador, username);
+        this.juegoActual = nuevoJuego;
+        retadorCliente.juegoActual = nuevoJuego;
+
+        // Registrar en juegos activos
+        ServidorMulti.juegosActivos.put(retador, nuevoJuego);
+        ServidorMulti.juegosActivos.put(username, nuevoJuego);
+
+        // Notificaciones
+        String mensajeInicio = "🎉 ¡Juego iniciado! Tú eres '" + nuevoJuego.getMarca(username) + "'. " + nuevoJuego.dibujarTablero();
+        salida.writeUTF(mensajeInicio);
+
+        String mensajeRetador = "🎉 ¡Juego iniciado! " + username + " aceptó. Tú eres '" + nuevoJuego.getMarca(retador) + "'. " + nuevoJuego.dibujarTablero();
+        retadorCliente.salida.writeUTF(mensajeRetador);
+    }
+
+    private void manejarComandoMover(String posicionStr) throws IOException {
+        if (juegoActual == null) {
+            salida.writeUTF("❌ No estás en un juego. Usa /jugar [usuario].");
+            return;
+        }
+
+        try {
+            int posicion = Integer.parseInt(posicionStr);
+            int resultado = juegoActual.realizarMovimiento(posicion, username);
+            String oponente = juegoActual.getOponente(username);
+
+            if (resultado == 1) salida.writeUTF("❌ No es tu turno.");
+            else if (resultado == 2) salida.writeUTF("❌ La posición " + posicion + " ya está ocupada.");
+            else if (resultado == 3) salida.writeUTF("❌ Posición inválida (0-8).");
+            else {
+                // Movimiento exitoso
+                String tableroActual = juegoActual.dibujarTablero();
+
+                if (juegoActual.hayGanador()) {
+                    String ganador = juegoActual.getGanadorUsername();
+                    String perdedor = juegoActual.getOponente(ganador);
+
+                    salida.writeUTF("🏆 ¡GANASTE! " + tableroActual);
+                    notificarOponente(oponente, "😭 ¡HAS PERDIDO! " + ganador + " ganó. " + tableroActual);
+                    terminarJuego(ganador, perdedor);
+                } else if (juegoActual.hayEmpate()) {
+                    salida.writeUTF("🤝 ¡EMPATE! " + tableroActual);
+                    notificarOponente(oponente, "🤝 ¡EMPATE! " + tableroActual);
+                    terminarJuego(username, oponente);
+                } else {
+                    // Juego continúa
+                    salida.writeUTF("✅ Movimiento realizado. Turno de " + oponente + ". " + tableroActual);
+                    notificarOponente(oponente, "🔔 " + username + " movió a [" + posicion + "]. ¡Es tu turno! " + juegoActual.dibujarTablero());
+                }
+            }
+        } catch (NumberFormatException e) {
+            salida.writeUTF("❌ Posición inválida. Usa /mover [0-8].");
+        }
+    }
+
+    private void manejarComandoTablero() throws IOException {
+        if (juegoActual == null) {
+            salida.writeUTF("❌ No estás en un juego. Usa /jugar [usuario].");
+        } else {
+            salida.writeUTF(juegoActual.dibujarTablero());
+        }
+    }
+
+    private void terminarJuego(String jugador1, String jugador2) {
+        // Limpieza de estados en los clientes
+        UnCliente cliente1 = buscarClientePorNombre(jugador1);
+        if (cliente1 != null) cliente1.juegoActual = null;
+
+        UnCliente cliente2 = buscarClientePorNombre(jugador2);
+        if (cliente2 != null) cliente2.juegoActual = null;
+
+        // Quitar de la lista de juegos activos
+        ServidorMulti.juegosActivos.remove(jugador1);
+        ServidorMulti.juegosActivos.remove(jugador2);
+    }
+
+    private void terminarJuegoAbandono(String abandonador, JuegoGato juego) {
+        String ganador = juego.getOponente(abandonador);
+
+        // Notificar al ganador
+        notificarOponente(ganador, "🏆 ¡HAS GANADO! " + abandonador + " se desconectó y perdió por abandono.");
+
+        // Limpiar el estado del ganador
+        UnCliente ganadorCliente = buscarClientePorNombre(ganador);
+        if (ganadorCliente != null) ganadorCliente.juegoActual = null;
+
+        // Limpiar de juegos activos
+        ServidorMulti.juegosActivos.remove(ganador);
+        ServidorMulti.juegosActivos.remove(abandonador);
+
+        System.out.println("LOG: " + abandonador + " abandonó el juego contra " + ganador);
+    }
+
 
     private UnCliente buscarClientePorNombre(String username) {
         for (UnCliente cliente : ServidorMulti.clientes.values()) {
