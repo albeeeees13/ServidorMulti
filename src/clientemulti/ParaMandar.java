@@ -22,6 +22,7 @@ public class ParaMandar implements Runnable {
         System.out.println(" Usa: /bloquear [usuario] | /desbloquear [usuario]");
         System.out.println(" Usa: /verbloqueados");
         System.out.println(" Usa: @[usuario] [mensaje] para privado");
+        System.out.println(" Juego Gato: /jugar [usuario] | /aceptar | /mover [0-8] | /tablero");
         System.out.println(" Escribe 'salir' para desconectar.");
         System.out.println("---------------------------\n");
     }
