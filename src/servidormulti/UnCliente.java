@@ -80,7 +80,7 @@ public class UnCliente implements Runnable {
                     manejarComandoTablero();
                     continue;
                 }
-            }
+
 
 
 
@@ -128,10 +128,17 @@ public class UnCliente implements Runnable {
         } catch (IOException | SQLException ex) {
             System.err.println("Error con cliente " + (username != null ? username : socket.getPort()) + ": " + ex.getMessage());
         } finally {
+            if (this.juegoActual != null) {
+                terminarJuegoAbandono(this.username, this.juegoActual);
+            }
+
             System.out.println("LOG: Desconexión del cliente " + (username != null ? username : socket.getPort()));
             try { socket.close(); } catch (IOException ignored) {}
         }
+
     }
+
+
 
 
 
