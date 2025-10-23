@@ -13,6 +13,8 @@ public class UnCliente implements Runnable {
     private int mensajesEnviados = 0;
     private final Socket socket;
 
+    private JuegoGato juegoActual = null;
+
     public UnCliente(Socket s) throws IOException {
         this.socket = s;
         this.salida = new DataOutputStream(s.getOutputStream());
@@ -62,6 +64,23 @@ public class UnCliente implements Runnable {
                     continue;
                 }
 
+                if (mensaje.startsWith("/jugar ")) {
+                    manejarComandoJugar(mensaje.substring(7).trim());
+                    continue;
+                }
+                if (mensaje.equalsIgnoreCase("/aceptar")) {
+                    manejarComandoAceptar();
+                    continue;
+                }
+                if (mensaje.startsWith("/mover ")) {
+                    manejarComandoMover(mensaje.substring(7).trim());
+                    continue;
+                }
+                if (mensaje.equalsIgnoreCase("/tablero")) {
+                    manejarComandoTablero();
+                    continue;
+                }
+            }
 
 
 
