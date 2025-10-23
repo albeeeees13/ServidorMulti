@@ -68,3 +68,41 @@ public class JuegoGato {
         }
         return 0;
     }
+
+    private char verificarEstado() {
+        // Combinaciones ganadoras (filas, columnas, diagonales)
+        int[][] combinaciones = {
+                {0, 1, 2}, {3, 4, 5}, {6, 7, 8}, // Filas
+                {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, // Columnas
+                {0, 4, 8}, {2, 4, 6}             // Diagonales
+        };
+
+        for (int[] combo : combinaciones) {
+            if (tablero[combo[0]] != ' ' &&
+                    tablero[combo[0]] == tablero[combo[1]] &&
+                    tablero[combo[1]] == tablero[combo[2]]) {
+                return tablero[combo[0]];
+            }
+        }
+        return ' ';
+    }
+
+    public boolean hayGanador() {
+        return verificarEstado() != ' ';
+    }
+
+    public String getGanadorUsername() {
+        char marcaGanadora = verificarEstado();
+        if (marcaGanadora == 'X') return jugadorX;
+        if (marcaGanadora == 'O') return jugadorO;
+        return null;
+    }
+
+    public boolean hayEmpate() {
+        if (hayGanador()) return false;
+        for (char c : tablero) {
+            if (c == ' ') return false;
+        }
+        return true;
+    }
+}
