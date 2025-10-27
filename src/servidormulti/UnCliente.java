@@ -48,7 +48,7 @@ public class UnCliente implements Runnable {
 
                 if (mensaje.startsWith("/bloquear ") || mensaje.startsWith("/desbloquear ")) {
                     if (username == null) {
-                        salida.writeUTF("❌ Debes iniciar sesión para usar comandos de bloqueo.");
+                        salida.writeUTF(" Debes iniciar sesión para usar comandos de bloqueo.");
                     } else {
                         manejarComandoBloqueo(mensaje);
                     }
@@ -57,7 +57,7 @@ public class UnCliente implements Runnable {
 
                 if (mensaje.equalsIgnoreCase("/verbloqueados")) {
                     if (username == null) {
-                        salida.writeUTF("❌ Debes iniciar sesión para ver tus bloqueados.");
+                        salida.writeUTF(" Debes iniciar sesión para ver tus bloqueados.");
                     } else {
                         verBloqueados();
                     }
@@ -187,7 +187,7 @@ public class UnCliente implements Runnable {
 
             if (AuthManager.registrarUsuario(usuario, contrasena)) {
                 this.username = usuario;
-                salida.writeUTF("✅ Usuario registrado e inicio de sesión correcto. Ahora puedes mandar mensajes sin límite.");
+                salida.writeUTF(" Usuario registrado e inicio de sesión correcto. Ahora puedes mandar mensajes sin límite.");
             } else {
                 salida.writeUTF("Ese usuario ya existe. Intenta iniciar sesión con 'login'.");
             }
@@ -207,9 +207,9 @@ public class UnCliente implements Runnable {
 
             if (AuthManager.validarUsuario(usuario, contrasena)) {
                 this.username = usuario;
-                salida.writeUTF("✅ Inicio de sesión exitoso. Puedes continuar enviando mensajes.");
+                salida.writeUTF(" Inicio de sesión exitoso. Puedes continuar enviando mensajes.");
             } else {
-                salida.writeUTF("❌ Usuario o contraseña incorrectos.");
+                salida.writeUTF(" Usuario o contraseña incorrectos.");
             }
         } catch (SQLException e) {
             salida.writeUTF("Error de servidor al iniciar sesión: " + e.getMessage());
@@ -234,15 +234,15 @@ public class UnCliente implements Runnable {
         try {
             if (accion.equals("bloquear")) {
                 BloqueoManager.bloquear(this.username, aQuien);
-                salida.writeUTF("✅ Has bloqueado correctamente a " + aQuien + ". Sus mensajes ya no te llegarán.");
+                salida.writeUTF(" Has bloqueado correctamente a " + aQuien + ". Sus mensajes ya no te llegarán.");
                 System.out.println("LOG: " + this.username + " ha bloqueado a " + aQuien);
             } else {
                 BloqueoManager.desbloquear(this.username, aQuien);
-                salida.writeUTF("✅ Has desbloqueado a " + aQuien + ".");
+                salida.writeUTF(" Has desbloqueado a " + aQuien + ".");
                 System.out.println("LOG: " + this.username + " ha desbloqueado a " + aQuien);
             }
         } catch (SQLException e) {
-            salida.writeUTF("❌ Error en la base de datos: " + e.getMessage());
+            salida.writeUTF(" Error en la base de datos: " + e.getMessage());
             System.err.println("Error SQL en " + accion + ": " + e.getMessage());
         }
     }
@@ -260,7 +260,7 @@ public class UnCliente implements Runnable {
                 salida.writeUTF("---------------------------");
             }
         } catch (SQLException e) {
-            salida.writeUTF("❌ Error al consultar bloqueados: " + e.getMessage());
+            salida.writeUTF(" Error al consultar bloqueados: " + e.getMessage());
         }
     }
 
@@ -275,42 +275,42 @@ public class UnCliente implements Runnable {
 
     private void manejarComandoJugar(String oponente) throws IOException, SQLException {
         if (oponente.equalsIgnoreCase(username)) {
-            salida.writeUTF("❌ No puedes invitarte a ti mismo.");
+            salida.writeUTF(" No puedes invitarte a ti mismo.");
             return;
         }
         if (this.juegoActual != null) {
-            salida.writeUTF("❌ Ya estás en un juego contra " + juegoActual.getOponente(username) + ".");
+            salida.writeUTF(" Ya estás en un juego contra " + juegoActual.getOponente(username) + ".");
             return;
         }
 
         if (!AuthManager.usuarioExiste(oponente)) {
-            salida.writeUTF("❌ El usuario '" + oponente + "' no está registrado.");
+            salida.writeUTF(" El usuario '" + oponente + "' no está registrado.");
             return;
         }
 
         UnCliente oponenteCliente = buscarClientePorNombre(oponente);
         if (oponenteCliente == null || oponenteCliente.juegoActual != null) {
-            salida.writeUTF("❌ El usuario '" + oponente + "' no está conectado o ya está jugando.");
+            salida.writeUTF(" El usuario '" + oponente + "' no está conectado o ya está jugando.");
             return;
         }
 
         // Crear la invitación
         ServidorMulti.invitacionesPendientes.put(oponente, username);
-        salida.writeUTF("✅ Invitación enviada a " + oponente + ". Esperando respuesta...");
+        salida.writeUTF(" Invitación enviada a " + oponente + ". Esperando respuesta...");
         oponenteCliente.salida.writeUTF("\n🔔 ¡Has sido retado al GATO por " + username + "! Escribe /aceptar para empezar.");
     }
 
     private void manejarComandoAceptar() throws IOException {
         String retador = ServidorMulti.invitacionesPendientes.remove(username);
         if (retador == null) {
-            salida.writeUTF("❌ No tienes invitaciones pendientes.");
+            salida.writeUTF(" No tienes invitaciones pendientes.");
             return;
         }
 
         UnCliente retadorCliente = buscarClientePorNombre(retador);
         if (retadorCliente == null || retadorCliente.juegoActual != null) {
-            salida.writeUTF("❌ El retador se desconectó o ya está jugando.");
-            notificarOponente(retador, "❌ El retado se desconectó o ya no está disponible.");
+            salida.writeUTF("El retador se desconectó o ya está jugando.");
+            notificarOponente(retador, " El retado se desconectó o ya no está disponible.");
             return;
         }
 
@@ -324,16 +324,16 @@ public class UnCliente implements Runnable {
         ServidorMulti.juegosActivos.put(username, nuevoJuego);
 
         // Notificaciones
-        String mensajeInicio = "🎉 ¡Juego iniciado! Tú eres '" + nuevoJuego.getMarca(username) + "'. " + nuevoJuego.dibujarTablero();
+        String mensajeInicio = " ¡Juego iniciado! Tú eres '" + nuevoJuego.getMarca(username) + "'. " + nuevoJuego.dibujarTablero();
         salida.writeUTF(mensajeInicio);
 
-        String mensajeRetador = "🎉 ¡Juego iniciado! " + username + " aceptó. Tú eres '" + nuevoJuego.getMarca(retador) + "'. " + nuevoJuego.dibujarTablero();
+        String mensajeRetador = " ¡Juego iniciado! " + username + " aceptó. Tú eres '" + nuevoJuego.getMarca(retador) + "'. " + nuevoJuego.dibujarTablero();
         retadorCliente.salida.writeUTF(mensajeRetador);
     }
 
     private void manejarComandoMover(String posicionStr) throws IOException {
         if (juegoActual == null) {
-            salida.writeUTF("❌ No estás en un juego. Usa /jugar [usuario].");
+            salida.writeUTF(" No estás en un juego. Usa /jugar [usuario].");
             return;
         }
 
@@ -342,9 +342,9 @@ public class UnCliente implements Runnable {
             int resultado = juegoActual.realizarMovimiento(posicion, username);
             String oponente = juegoActual.getOponente(username);
 
-            if (resultado == 1) salida.writeUTF("❌ No es tu turno.");
-            else if (resultado == 2) salida.writeUTF("❌ La posición " + posicion + " ya está ocupada.");
-            else if (resultado == 3) salida.writeUTF("❌ Posición inválida (0-8).");
+            if (resultado == 1) salida.writeUTF(" No es tu turno.");
+            else if (resultado == 2) salida.writeUTF(" La posición " + posicion + " ya está ocupada.");
+            else if (resultado == 3) salida.writeUTF(" Posición inválida (0-8).");
             else {
                 // Movimiento exitoso
                 String tableroActual = juegoActual.dibujarTablero();
@@ -353,27 +353,27 @@ public class UnCliente implements Runnable {
                     String ganador = juegoActual.getGanadorUsername();
                     String perdedor = juegoActual.getOponente(ganador);
 
-                    salida.writeUTF("🏆 ¡GANASTE! " + tableroActual);
+                    salida.writeUTF(" ¡GANASTE! " + tableroActual);
                     notificarOponente(oponente, "😭 ¡HAS PERDIDO! " + ganador + " ganó. " + tableroActual);
                     terminarJuego(ganador, perdedor);
                 } else if (juegoActual.hayEmpate()) {
-                    salida.writeUTF("🤝 ¡EMPATE! " + tableroActual);
-                    notificarOponente(oponente, "🤝 ¡EMPATE! " + tableroActual);
+                    salida.writeUTF(" ¡EMPATE! " + tableroActual);
+                    notificarOponente(oponente, "¡EMPATE! " + tableroActual);
                     terminarJuego(username, oponente);
                 } else {
                     // Juego continúa
-                    salida.writeUTF("✅ Movimiento realizado. Turno de " + oponente + ". " + tableroActual);
+                    salida.writeUTF(" Movimiento realizado. Turno de " + oponente + ". " + tableroActual);
                     notificarOponente(oponente, "🔔 " + username + " movió a [" + posicion + "]. ¡Es tu turno! " + juegoActual.dibujarTablero());
                 }
             }
         } catch (NumberFormatException e) {
-            salida.writeUTF("❌ Posición inválida. Usa /mover [0-8].");
+            salida.writeUTF(" Posición inválida. Usa /mover [0-8].");
         }
     }
 
     private void manejarComandoTablero() throws IOException {
         if (juegoActual == null) {
-            salida.writeUTF("❌ No estás en un juego. Usa /jugar [usuario].");
+            salida.writeUTF(" No estás en un juego. Usa /jugar [usuario].");
         } else {
             salida.writeUTF(juegoActual.dibujarTablero());
         }
@@ -396,7 +396,7 @@ public class UnCliente implements Runnable {
         String ganador = juego.getOponente(abandonador);
 
         // Notificar al ganador
-        notificarOponente(ganador, "🏆 ¡HAS GANADO! " + abandonador + " se desconectó y perdió por abandono.");
+        notificarOponente(ganador, "¡HAS GANADO! " + abandonador + " se desconectó y perdió por abandono.");
 
         // Limpiar el estado del ganador
         UnCliente ganadorCliente = buscarClientePorNombre(ganador);
