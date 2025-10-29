@@ -1,4 +1,3 @@
-
 package servidormulti;
 
 import java.sql.Connection;
@@ -6,6 +5,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AuthManager {
 
@@ -13,31 +14,28 @@ public class AuthManager {
         return ConexionBD.getConnection();
     }
 
-
     static {
         try (Connection conn = getConnection();
              Statement st = conn.createStatement()) {
 
-
             String sqlUsuarios = """
-                    CREATE TABLE IF NOT EXISTS usuarios (
-                        username TEXT PRIMARY KEY,
-                        password_hash TEXT NOT NULL
-                    )
-                    """;
+                CREATE TABLE IF NOT EXISTS usuarios (
+                    username TEXT PRIMARY KEY,
+                    password_hash TEXT NOT NULL
+                )
+                """;
             st.execute(sqlUsuarios);
 
-
             String sqlRecords = """
-                    CREATE TABLE IF NOT EXISTS gato_records (
-                        jugador TEXT PRIMARY KEY,
-                        puntos INTEGER DEFAULT 0,
-                        victorias INTEGER DEFAULT 0,
-                        empates INTEGER DEFAULT 0,
-                        derrotas INTEGER DEFAULT 0,
-                        partidas_jugadas INTEGER DEFAULT 0
-                    )
-                    """;
+                CREATE TABLE IF NOT EXISTS gato_records (
+                    jugador TEXT PRIMARY KEY,
+                    puntos INTEGER DEFAULT 0,
+                    victorias INTEGER DEFAULT 0,
+                    empates INTEGER DEFAULT 0,
+                    derrotas INTEGER DEFAULT 0,
+                    partidas_jugadas INTEGER DEFAULT 0
+                )
+                """;
             st.execute(sqlRecords);
 
         } catch (SQLException e) {
@@ -48,7 +46,6 @@ public class AuthManager {
     private static String hashPassword(String password) {
         return String.valueOf(password.hashCode());
     }
-
 
     public static synchronized boolean registrarUsuario(String usuario, String contrasena) throws SQLException {
         if (usuarioExiste(usuario)) {
@@ -69,8 +66,6 @@ public class AuthManager {
         }
     }
 
-    // --------------------------------------------------------------------------
-
     public static synchronized boolean validarUsuario(String usuario, String contrasena) throws SQLException {
         String sql = "SELECT password_hash FROM usuarios WHERE username = ?";
         try (Connection conn = getConnection();
@@ -87,8 +82,6 @@ public class AuthManager {
         }
         return false;
     }
-
-    // --------------------------------------------------------------------------
 
     public static synchronized boolean usuarioExiste(String usuario) throws SQLException {
         String sql = "SELECT COUNT(*) FROM usuarios WHERE username = ?";
@@ -129,12 +122,12 @@ public class AuthManager {
         }
 
         String sql = String.format("""
-                UPDATE gato_records 
-                SET puntos = puntos + ?, 
-                    %s = %s + 1, 
-                    partidas_jugadas = partidas_jugadas + 1
-                WHERE jugador = ?
-                """, columnaAIncrementar, columnaAIncrementar);
+            UPDATE gato_records 
+            SET puntos = puntos + ?, 
+                %s = %s + 1, 
+                partidas_jugadas = partidas_jugadas + 1
+            WHERE jugador = ?
+            """, columnaAIncrementar, columnaAIncrementar);
 
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {

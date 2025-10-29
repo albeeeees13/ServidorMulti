@@ -22,6 +22,7 @@ public class ParaMandar implements Runnable {
         System.out.println(" Usa: /bloquear [usuario] | /desbloquear [usuario]");
         System.out.println(" Usa: /verbloqueados");
         System.out.println(" Usa: @[usuario] [mensaje] para privado");
+        System.out.println(" Ranking: /ranking | /estadistica [usuario]");
         System.out.println(" Juego Gato: /jugar [usuario] | /aceptar | /mover [0-8] | /tablero");
         System.out.println(" Escribe 'salir' para desconectar.");
         System.out.println("---------------------------\n");
@@ -29,16 +30,13 @@ public class ParaMandar implements Runnable {
 
     @Override
     public void run() {
-        // Llama al método para mostrar los comandos al iniciar el cliente
         mostrarAyuda();
         try {
             while (true) {
-                // Muestra un prompt para hacer más clara la entrada
-                System.out.print(">");
+                System.out.print("> ");
 
                 String mensaje = teclado.readLine();
                 if (mensaje == null) break;
-
 
                 if (mensaje.equalsIgnoreCase("/ayuda") || mensaje.equalsIgnoreCase("comandos")) {
                     mostrarAyuda();

@@ -246,6 +246,15 @@ public class UnCliente implements Runnable {
         }
     }
 
+    private void notificarOponente(String oponenteUsername, String mensaje) {
+        UnCliente oponenteCliente = buscarClientePorNombre(oponenteUsername);
+        if (oponenteCliente != null) {
+            try {
+                oponenteCliente.salida.writeUTF(mensaje);
+            } catch (IOException ignored) {}
+        }
+    }
+
     private void manejarComandoJugar(String oponente) throws IOException, SQLException {
         if (oponente.equalsIgnoreCase(username)) {
             salida.writeUTF("No puedes invitarte a ti mismo.");
@@ -412,8 +421,15 @@ public class UnCliente implements Runnable {
     }
 
     private void manejarComandoEstadistica(String otroJugador) throws IOException {
-        if (!AuthManager.usuarioExiste(otroJugador)) {
-            salida.writeUTF("El usuario '" + otroJugador + "' no existe en el sistema.");
+
+        try {
+            if (!AuthManager.usuarioExiste(otroJugador)) {
+                salida.writeUTF("El usuario '" + otroJugador + "' no existe en el sistema.");
+                return;
+            }
+        } catch (SQLException e) {
+            salida.writeUTF("Error del servidor al verificar la existencia del usuario.");
+            System.err.println("Error SQL en usuarioExiste (estadistica): " + e.getMessage());
             return;
         }
 
