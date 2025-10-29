@@ -17,24 +17,38 @@ public class AuthManager {
     static {
         try (Connection conn = getConnection();
              Statement st = conn.createStatement()) {
-            String sql = """
+
+
+            String sqlUsuarios = """
                 CREATE TABLE IF NOT EXISTS usuarios (
                     username TEXT PRIMARY KEY,
                     password_hash TEXT NOT NULL
                 )
                 """;
-            st.execute(sql);
+            st.execute(sqlUsuarios);
+
+
+            String sqlRecords = """
+                CREATE TABLE IF NOT EXISTS gato_records (
+                    jugador TEXT PRIMARY KEY,
+                    puntos INTEGER DEFAULT 0,
+                    victorias INTEGER DEFAULT 0,
+                    empates INTEGER DEFAULT 0,
+                    derrotas INTEGER DEFAULT 0,
+                    partidas_jugadas INTEGER DEFAULT 0
+                )
+                """;
+            st.execute(sqlRecords);
+
         } catch (SQLException e) {
-            System.err.println("Error al crear tabla de usuarios: " + e.getMessage());
+            System.err.println("Error al crear tablas: " + e.getMessage());
         }
     }
-
 
     private static String hashPassword(String password) {
         return String.valueOf(password.hashCode());
     }
 
-    // --------------------------------------------------------------------------
 
     public static synchronized boolean registrarUsuario(String usuario, String contrasena) throws SQLException {
         if (usuarioExiste(usuario)) {
