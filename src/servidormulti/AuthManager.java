@@ -38,6 +38,31 @@ public class AuthManager {
                 """;
             st.execute(sqlRecords);
 
+            String sqlGrupos = """
+                CREATE TABLE IF NOT EXISTS grupos (
+                    nombre TEXT PRIMARY KEY,
+                    miembros TEXT NOT NULL,
+                    creador TEXT NOT NULL
+                )
+                """;
+            st.execute(sqlGrupos);
+
+
+            String sqlMensajesOffline = """
+                CREATE TABLE IF NOT EXISTS mensajes_offline (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    grupo TEXT NOT NULL,
+                    emisor TEXT NOT NULL,
+                    contenido TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """;
+            st.execute(sqlMensajesOffline);
+
+
+            String sqlInsertTodos = "INSERT OR IGNORE INTO grupos (nombre, miembros, creador) VALUES ('Todos', '', 'SERVER')";
+            st.execute(sqlInsertTodos);
+
         } catch (SQLException e) {
             System.err.println("Error al crear tablas: " + e.getMessage());
         }
