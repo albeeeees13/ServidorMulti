@@ -394,14 +394,17 @@ public class UnCliente implements Runnable {
     private List<String> obtenerMiembrosDeGrupo(String grupo) {
         try {
             String miembrosStr = AuthManager.obtenerMiembrosString(grupo);
-            if (miembrosStr == null || miembrosStr.isEmpty()) return new ArrayList<>();
+
+            if (miembrosStr == null || miembrosStr.length() <= 1) {
+                return new ArrayList<>();
+            }
+
             return new ArrayList<>(Arrays.asList(miembrosStr.substring(1, miembrosStr.length() - 1).split(",")));
         } catch (SQLException e) {
             System.err.println("Error al obtener miembros de grupo: " + e.getMessage());
             return new ArrayList<>();
         }
     }
-
     private void almacenarMensaje(String grupo, String emisor, String contenido) {
         try {
             AuthManager.almacenarMensajeOffline(grupo, emisor, contenido);

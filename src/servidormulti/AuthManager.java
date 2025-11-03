@@ -7,6 +7,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.ArrayList;
 
 public class AuthManager {
 
@@ -47,20 +51,19 @@ public class AuthManager {
                 """;
             st.execute(sqlGrupos);
 
-
             String sqlMensajesOffline = """
                 CREATE TABLE IF NOT EXISTS mensajes_offline (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     grupo TEXT NOT NULL,
                     emisor TEXT NOT NULL,
                     contenido TEXT NOT NULL,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    visto_por TEXT DEFAULT ''
                 )
                 """;
             st.execute(sqlMensajesOffline);
 
-
-            String sqlInsertTodos = "INSERT OR IGNORE INTO grupos (nombre, miembros, creador) VALUES ('Todos', '', 'SERVER')";
+            String sqlInsertTodos = "INSERT OR IGNORE INTO grupos (nombre, miembros, creador) VALUES ('Todos', ',', 'SERVER')";
             st.execute(sqlInsertTodos);
 
         } catch (SQLException e) {
@@ -196,5 +199,165 @@ public class AuthManager {
         }
         return stats;
     }
-}
 
+    public static synchronized boolean crearGrupo(String nombre, String creador) throws SQLException {
+        if (grupoExiste(nombre)) return false;
+
+        String sql = "INSERT INTO grupos (nombre, miembros, creador) VALUES (?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, nombre);
+            ps.setString(2, "," + creador.toLowerCase() + ",");
+            ps.setString(3, creador.toLowerCase());
+            ps.executeUpdate();
+            return true;
+        }
+    }
+
+    public static synchronized boolean borrarGrupo(String nombre) throws SQLException {
+        String sql = "DELETE FROM grupos WHERE nombre = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, nombre);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public static synchronized boolean grupoExiste(String nombre) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM grupos WHERE nombre = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, nombre);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() && rs.getInt(1) > 0;
+        }
+    }
+
+    public static synchronized String obtenerCreadorGrupo(String nombre) throws SQLException {
+        String sql = "SELECT creador FROM grupos WHERE nombre = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, nombre);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() ? rs.getString("creador") : null;
+        }
+    }
+
+    public static synchronized void actualizarMiembrosGrupo(String grupo, String miembros) throws SQLException {
+        String sql = "UPDATE grupos SET miembros = ? WHERE nombre = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, miembros);
+            ps.setString(2, grupo);
+            ps.executeUpdate();
+        }
+    }
+
+    public static synchronized String obtenerMiembrosString(String grupo) throws SQLException {
+        String sql = "SELECT miembros FROM grupos WHERE nombre = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, grupo);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() ? rs.getString("miembros") : null;
+        }
+    }
+
+    public static synchronized Set<String> obtenerNombresGrupos() throws SQLException {
+        Set<String> grupos = new HashSet<>();
+        String sql = "SELECT nombre FROM grupos";
+        try (Connection conn = getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                grupos.add(rs.getString("nombre"));
+            }
+        }
+        return grupos;
+    }
+
+    public static synchronized void almacenarMensajeOffline(String grupo, String emisor, String contenido) throws SQLException {
+        String sql = "INSERT INTO mensajes_offline (grupo, emisor, contenido) VALUES (?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, grupo);
+            ps.setString(2, emisor);
+            ps.setString(3, contenido);
+            ps.executeUpdate();
+        }
+    }
+
+    public static synchronized Map<String, List<String>> obtenerMensajesNoVistos(String usuario) throws SQLException {
+        Map<String, List<String>> mensajesPorGrupo = new HashMap<>();
+
+        String usuarioBuscado = "," + usuario.toLowerCase() + ",";
+
+        String sql = """
+            SELECT m.id, m.grupo, m.emisor, m.contenido, m.timestamp 
+            FROM mensajes_offline m
+            JOIN grupos g ON m.grupo = g.nombre
+            WHERE m.visto_por NOT LIKE ? AND g.miembros LIKE ?
+            ORDER BY m.timestamp ASC
+            """;
+
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, "%" + usuarioBuscado + "%");
+            ps.setString(2, "%" + usuarioBuscado + "%");
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String grupo = rs.getString("grupo");
+                    String emisor = rs.getString("emisor");
+                    String contenido = rs.getString("contenido");
+                    String timestamp = rs.getString("timestamp");
+
+                    String mensajeCompleto = String.format("%s [%s]: %s", timestamp.substring(11, 16), emisor, contenido);
+
+                    mensajesPorGrupo.computeIfAbsent(grupo, k -> new ArrayList<>()).add(mensajeCompleto);
+                }
+            }
+        }
+        return mensajesPorGrupo;
+    }
+
+    public static synchronized void marcarMensajesComoVistos(String usuario) throws SQLException {
+        String usuarioBuscado = "," + usuario.toLowerCase() + ",";
+
+        String sqlSelectIds = """
+            SELECT m.id FROM mensajes_offline m
+            JOIN grupos g ON m.grupo = g.nombre
+            WHERE m.visto_por NOT LIKE ? AND g.miembros LIKE ?
+            """;
+
+        List<Long> ids = new ArrayList<>();
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sqlSelectIds)) {
+
+            ps.setString(1, "%" + usuarioBuscado + "%");
+            ps.setString(2, "%" + usuarioBuscado + "%");
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ids.add(rs.getLong("id"));
+                }
+            }
+        }
+
+        if (ids.isEmpty()) return;
+
+        String sqlUpdateVisto = "UPDATE mensajes_offline SET visto_por = visto_por || ? WHERE id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sqlUpdateVisto)) {
+
+            String usuarioConComa = usuario.toLowerCase() + ",";
+
+            for (long id : ids) {
+                ps.setString(1, usuarioConComa);
+                ps.setLong(2, id);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+}
