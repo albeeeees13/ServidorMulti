@@ -5,6 +5,9 @@ import java.net.Socket;
 import java.sql.SQLException;
 import java.util.Set;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UnCliente implements Runnable {
 
@@ -15,6 +18,8 @@ public class UnCliente implements Runnable {
     private final Socket socket;
 
     private JuegoGato juegoActual = null;
+
+    private String grupoActual = "Todos";
 
     public UnCliente(Socket s) throws IOException {
         this.socket = s;
@@ -47,6 +52,7 @@ public class UnCliente implements Runnable {
                 }
 
                 if (username != null) {
+
                     if (mensaje.startsWith("/bloquear ") || mensaje.startsWith("/desbloquear ")) {
                         manejarComandoBloqueo(mensaje);
                         continue;
@@ -62,6 +68,23 @@ public class UnCliente implements Runnable {
                     }
                     if (mensaje.startsWith("/estadistica ")) {
                         manejarComandoEstadistica(mensaje.substring(13).trim());
+                        continue;
+                    }
+
+                    if (mensaje.startsWith("/crear ")) {
+                        manejarComandoCrearGrupo(mensaje.substring(7).trim());
+                        continue;
+                    }
+                    if (mensaje.startsWith("/unirse ")) {
+                        manejarComandoUnirseGrupo(mensaje.substring(8).trim());
+                        continue;
+                    }
+                    if (mensaje.startsWith("/borrar ")) {
+                        manejarComandoBorrarGrupo(mensaje.substring(8).trim());
+                        continue;
+                    }
+                    if (mensaje.equalsIgnoreCase("/grupos")) {
+                        manejarComandoVerGrupos();
                         continue;
                     }
 
@@ -115,7 +138,7 @@ public class UnCliente implements Runnable {
                             salida.writeUTF("Usuario " + aQuien + " no encontrado o no está en el chat.");
                         }
                     } else {
-                        difundirMensaje(emisor, mensaje);
+                        difundirMensajeAGrupo(emisor, mensaje);
                     }
                 } else {
                     salida.writeUTF("No puedes mandar más mensajes sin registrarte o iniciar sesión.");
@@ -133,34 +156,6 @@ public class UnCliente implements Runnable {
         }
     }
 
-    private void difundirMensaje(String emisor, String mensaje) {
-        for (UnCliente cliente : ServidorMulti.clientes.values()) {
-
-            if (cliente == this) {
-                continue;
-            }
-
-            try {
-                boolean estaBloqueado = false;
-
-                if (cliente.username != null) {
-                    estaBloqueado = BloqueoManager.estaBloqueado(cliente.username, emisor);
-                }
-
-                if (!estaBloqueado) {
-                    cliente.salida.writeUTF(emisor + ": " + mensaje);
-                }
-            } catch (SQLException e) {
-                System.err.println("Error SQL al verificar bloqueo para difusión: " + e.getMessage());
-                try {
-                    cliente.salida.writeUTF(emisor + ": " + mensaje);
-                } catch (IOException ignored) {}
-            } catch (IOException ignored) {
-            }
-        }
-    }
-
-
     private void registrarUsuario() throws IOException {
         try {
             salida.writeUTF("Escribe un nombre de usuario:");
@@ -171,7 +166,9 @@ public class UnCliente implements Runnable {
 
             if (AuthManager.registrarUsuario(usuario, contrasena)) {
                 this.username = usuario;
-                salida.writeUTF("Usuario registrado e inicio de sesión correcto. Ahora puedes mandar mensajes sin límite.");
+                unirUsuarioAGrupo(usuario, "Todos");
+
+                salida.writeUTF("Usuario registrado e inicio de sesión correcto. Ahora puedes mandar mensajes sin límite. Estás en el grupo: " + grupoActual);
             } else {
                 salida.writeUTF("Ese usuario ya existe. Intenta iniciar sesión con 'login'.");
             }
@@ -191,13 +188,225 @@ public class UnCliente implements Runnable {
 
             if (AuthManager.validarUsuario(usuario, contrasena)) {
                 this.username = usuario;
-                salida.writeUTF("Inicio de sesión exitoso. Puedes continuar enviando mensajes.");
+                unirUsuarioAGrupo(usuario, "Todos");
+                this.grupoActual = "Todos";
+                cargarMensajesNoVistos(usuario);
+
+                salida.writeUTF("Inicio de sesión exitoso. Puedes continuar enviando mensajes. Estás en el grupo: " + grupoActual);
             } else {
                 salida.writeUTF("Usuario o contraseña incorrectos.");
             }
         } catch (SQLException e) {
             salida.writeUTF("Error de servidor al iniciar sesión: " + e.getMessage());
             System.err.println("Error SQL en login: " + e.getMessage());
+        }
+    }
+
+    private void manejarComandoEstadistica(String otroJugador) throws IOException {
+        try {
+            if (!AuthManager.usuarioExiste(otroJugador)) {
+                salida.writeUTF("El usuario '" + otroJugador + "' no existe en el sistema.");
+                return;
+            }
+        } catch (SQLException e) {
+            salida.writeUTF("Error del servidor al verificar la existencia del usuario.");
+            System.err.println("Error SQL en usuarioExiste (estadistica): " + e.getMessage());
+            return;
+        }
+
+        try {
+            Map<String, Integer> statsUsuario = AuthManager.obtenerEstadisticasJugador(username);
+            Map<String, Integer> statsOtro = AuthManager.obtenerEstadisticasJugador(otroJugador);
+
+            int totalUsuario = statsUsuario.getOrDefault("partidas_jugadas", 0);
+            int totalOtro = statsOtro.getOrDefault("partidas_jugadas", 0);
+
+            double porcentajeUsuario = (totalUsuario > 0)
+                    ? ((double)statsUsuario.getOrDefault("victorias", 0) / totalUsuario) * 100
+                    : 0.0;
+            double porcentajeOtro = (totalOtro > 0)
+                    ? ((double)statsOtro.getOrDefault("victorias", 0) / totalOtro) * 100
+                    : 0.0;
+
+            StringBuilder sb = new StringBuilder(String.format("\n--- ESTADÍSTICAS vs. %s ---\n", otroJugador.toUpperCase()));
+
+            sb.append(String.format(" %s:\n", username))
+                    .append(String.format("   Victorias: %d / %d partidas (%.2f%%)\n",
+                            statsUsuario.getOrDefault("victorias", 0), totalUsuario, porcentajeUsuario));
+
+            sb.append(String.format(" %s:\n", otroJugador))
+                    .append(String.format("   Victorias: %d / %d partidas (%.2f%%)\n",
+                            statsOtro.getOrDefault("victorias", 0), totalOtro, porcentajeOtro));
+
+            sb.append("---------------------------------------\n");
+            salida.writeUTF(sb.toString());
+
+        } catch (SQLException e) {
+            salida.writeUTF("Error al consultar estadísticas.");
+            System.err.println("Error SQL al obtener estadísticas: " + e.getMessage());
+        }
+    }
+
+    private void difundirMensajeAGrupo(String emisor, String contenido) throws IOException {
+        almacenarMensaje(grupoActual, emisor, contenido);
+
+        for (UnCliente cliente : ServidorMulti.clientes.values()) {
+            if (cliente.username != null) {
+
+                if (cliente != this && cliente.grupoActual.equals(this.grupoActual)) {
+                    try {
+                        if (!BloqueoManager.estaBloqueado(cliente.username, emisor)) {
+                            cliente.salida.writeUTF(String.format("[%s] %s: %s", grupoActual, emisor, contenido));
+                        }
+                    } catch (SQLException e) {
+                        System.err.println("Error de bloqueo al difundir: " + e.getMessage());
+                    }
+                }
+            } else {
+                if (grupoActual.equals("Todos")) {
+                    cliente.salida.writeUTF(String.format("[%s] %s: %s", grupoActual, emisor, contenido));
+                }
+            }
+        }
+    }
+
+    private void cargarMensajesNoVistos(String usuario) throws IOException {
+        try {
+            Map<String, List<String>> mensajesPorGrupo = AuthManager.obtenerMensajesNoVistos(usuario);
+
+            if (mensajesPorGrupo.isEmpty()) {
+                salida.writeUTF("No tienes mensajes sin leer.");
+                return;
+            }
+
+            salida.writeUTF("--- MENSAJES SIN LEER ---");
+            for (Map.Entry<String, List<String>> entry : mensajesPorGrupo.entrySet()) {
+                salida.writeUTF(String.format("GRUPO: %s", entry.getKey()));
+                for (String mensaje : entry.getValue()) {
+                    salida.writeUTF(mensaje);
+                }
+            }
+            salida.writeUTF("-------------------------");
+
+            AuthManager.marcarMensajesComoVistos(usuario);
+
+        } catch (SQLException e) {
+            salida.writeUTF("Error al cargar mensajes sin leer.");
+            System.err.println("Error SQL al cargar mensajes: " + e.getMessage());
+        }
+    }
+
+    private void manejarComandoVerGrupos() throws IOException {
+        try {
+            Set<String> grupos = AuthManager.obtenerNombresGrupos();
+            salida.writeUTF("\n--- GRUPOS DISPONIBLES ---");
+            grupos.forEach(g -> {
+                try {
+                    salida.writeUTF("- " + g);
+                } catch (IOException ignored) {}
+            });
+            salida.writeUTF("---------------------------\n");
+        } catch (SQLException e) {
+            salida.writeUTF("Error al obtener lista de grupos.");
+        }
+    }
+
+    private void manejarComandoCrearGrupo(String nombre) throws IOException {
+        if (nombre.equalsIgnoreCase("Todos")) {
+            salida.writeUTF("No puedes crear un grupo llamado 'Todos'.");
+            return;
+        }
+        try {
+            if (AuthManager.crearGrupo(nombre, username)) {
+                unirUsuarioAGrupo(username, nombre);
+                this.grupoActual = nombre;
+                salida.writeUTF(String.format("Grupo '%s' creado y te has unido.", nombre));
+            } else {
+                salida.writeUTF("El grupo ya existe.");
+            }
+        } catch (SQLException e) {
+            salida.writeUTF("Error al crear grupo.");
+        }
+    }
+
+    private void manejarComandoUnirseGrupo(String nombre) throws IOException {
+        try {
+            if (AuthManager.grupoExiste(nombre)) {
+                if (username == null && !nombre.equalsIgnoreCase("Todos")) {
+                    salida.writeUTF("Los usuarios anónimos solo pueden estar en el grupo 'Todos'.");
+                    return;
+                }
+
+                unirUsuarioAGrupo(username, nombre);
+                this.grupoActual = nombre;
+                salida.writeUTF(String.format("Te has unido y cambiado al grupo '%s'.", nombre));
+                cargarMensajesNoVistos(username);
+
+            } else {
+                salida.writeUTF("El grupo no existe.");
+            }
+        } catch (SQLException e) {
+            salida.writeUTF("Error al unirse al grupo.");
+        }
+    }
+
+    private void manejarComandoBorrarGrupo(String nombre) throws IOException {
+        if (nombre.equalsIgnoreCase("Todos")) {
+            salida.writeUTF("El grupo 'Todos' no se puede borrar.");
+            return;
+        }
+        try {
+            String creador = AuthManager.obtenerCreadorGrupo(nombre);
+            if (creador == null) {
+                salida.writeUTF("El grupo no existe.");
+                return;
+            }
+            if (!creador.equalsIgnoreCase(username)) {
+                salida.writeUTF("Solo el creador del grupo (" + creador + ") puede borrarlo.");
+                return;
+            }
+
+            AuthManager.borrarGrupo(nombre);
+            salida.writeUTF(String.format("Grupo '%s' borrado.", nombre));
+
+            if (grupoActual.equalsIgnoreCase(nombre)) {
+                this.grupoActual = "Todos";
+                salida.writeUTF("Automáticamente has sido movido al grupo 'Todos'.");
+            }
+
+        } catch (SQLException e) {
+            salida.writeUTF("Error al borrar grupo.");
+        }
+    }
+
+    private void unirUsuarioAGrupo(String usuario, String grupo) throws SQLException {
+        if (usuario == null) return;
+
+        List<String> miembros = obtenerMiembrosDeGrupo(grupo);
+
+        if (!miembros.contains(usuario)) {
+            miembros.add(usuario);
+            String nuevosMiembros = "," + String.join(",", miembros) + ",";
+            AuthManager.actualizarMiembrosGrupo(grupo, nuevosMiembros);
+        }
+    }
+
+    private List<String> obtenerMiembrosDeGrupo(String grupo) {
+        try {
+            String miembrosStr = AuthManager.obtenerMiembrosString(grupo);
+            if (miembrosStr == null || miembrosStr.isEmpty()) return new ArrayList<>();
+            return new ArrayList<>(Arrays.asList(miembrosStr.substring(1, miembrosStr.length() - 1).split(",")));
+        } catch (SQLException e) {
+            System.err.println("Error al obtener miembros de grupo: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private void almacenarMensaje(String grupo, String emisor, String contenido) {
+        try {
+            AuthManager.almacenarMensajeOffline(grupo, emisor, contenido);
+        } catch (SQLException e) {
+            System.err.println("Error al almacenar mensaje offline: " + e.getMessage());
         }
     }
 
@@ -243,6 +452,28 @@ public class UnCliente implements Runnable {
             }
         } catch (SQLException e) {
             salida.writeUTF("Error al consultar bloqueados: " + e.getMessage());
+        }
+    }
+
+    private void manejarComandoRanking() throws IOException {
+        try {
+            Map<String, Integer> ranking = AuthManager.obtenerRanking();
+            if (ranking.isEmpty()) {
+                salida.writeUTF("No hay datos de ranking disponibles.");
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder("\n--- RANKING DEL GATO (Puntos) ---\n");
+            int i = 1;
+            for (Map.Entry<String, Integer> entry : ranking.entrySet()) {
+                sb.append(String.format("%d. %s (%d puntos)\n", i++, entry.getKey(), entry.getValue()));
+            }
+            sb.append("---------------------------------------\n");
+            salida.writeUTF(sb.toString());
+
+        } catch (SQLException e) {
+            salida.writeUTF("Error al consultar el ranking.");
+            System.err.println("Error SQL al obtener ranking: " + e.getMessage());
         }
     }
 
@@ -398,74 +629,6 @@ public class UnCliente implements Runnable {
         System.out.println("LOG: " + abandonador + " abandonó el juego contra " + ganador);
     }
 
-    private void manejarComandoRanking() throws IOException {
-        try {
-            Map<String, Integer> ranking = AuthManager.obtenerRanking();
-            if (ranking.isEmpty()) {
-                salida.writeUTF("No hay datos de ranking disponibles.");
-                return;
-            }
-
-            StringBuilder sb = new StringBuilder("\n--- RANKING DEL GATO (Puntos) ---\n");
-            int i = 1;
-            for (Map.Entry<String, Integer> entry : ranking.entrySet()) {
-                sb.append(String.format("%d. %s (%d puntos)\n", i++, entry.getKey(), entry.getValue()));
-            }
-            sb.append("---------------------------------------\n");
-            salida.writeUTF(sb.toString());
-
-        } catch (SQLException e) {
-            salida.writeUTF("Error al consultar el ranking.");
-            System.err.println("Error SQL al obtener ranking: " + e.getMessage());
-        }
-    }
-
-    private void manejarComandoEstadistica(String otroJugador) throws IOException {
-
-        try {
-            if (!AuthManager.usuarioExiste(otroJugador)) {
-                salida.writeUTF("El usuario '" + otroJugador + "' no existe en el sistema.");
-                return;
-            }
-        } catch (SQLException e) {
-            salida.writeUTF("Error del servidor al verificar la existencia del usuario.");
-            System.err.println("Error SQL en usuarioExiste (estadistica): " + e.getMessage());
-            return;
-        }
-
-        try {
-            Map<String, Integer> statsUsuario = AuthManager.obtenerEstadisticasJugador(username);
-            Map<String, Integer> statsOtro = AuthManager.obtenerEstadisticasJugador(otroJugador);
-
-            int totalUsuario = statsUsuario.getOrDefault("partidas_jugadas", 0);
-            int totalOtro = statsOtro.getOrDefault("partidas_jugadas", 0);
-
-            double porcentajeUsuario = (totalUsuario > 0)
-                    ? ((double)statsUsuario.getOrDefault("victorias", 0) / totalUsuario) * 100
-                    : 0.0;
-            double porcentajeOtro = (totalOtro > 0)
-                    ? ((double)statsOtro.getOrDefault("victorias", 0) / totalOtro) * 100
-                    : 0.0;
-
-            StringBuilder sb = new StringBuilder(String.format("\n--- ESTADÍSTICAS vs. %s ---\n", otroJugador.toUpperCase()));
-
-            sb.append(String.format(" %s:\n", username))
-                    .append(String.format("   Victorias: %d / %d partidas (%.2f%%)\n",
-                            statsUsuario.getOrDefault("victorias", 0), totalUsuario, porcentajeUsuario));
-
-            sb.append(String.format(" %s:\n", otroJugador))
-                    .append(String.format("   Victorias: %d / %d partidas (%.2f%%)\n",
-                            statsOtro.getOrDefault("victorias", 0), totalOtro, porcentajeOtro));
-
-            sb.append("---------------------------------------\n");
-            salida.writeUTF(sb.toString());
-
-        } catch (SQLException e) {
-            salida.writeUTF("Error al consultar estadísticas.");
-            System.err.println("Error SQL al obtener estadísticas: " + e.getMessage());
-        }
-    }
-
     private UnCliente buscarClientePorNombre(String username) {
         for (UnCliente cliente : ServidorMulti.clientes.values()) {
             if (cliente.username != null && cliente.username.equalsIgnoreCase(username)) {
@@ -475,4 +638,3 @@ public class UnCliente implements Runnable {
         return null;
     }
 }
-

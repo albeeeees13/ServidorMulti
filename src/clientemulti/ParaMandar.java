@@ -19,6 +19,7 @@ public class ParaMandar implements Runnable {
     private void mostrarAyuda() {
         System.out.println("\n--- Comandos disponibles ---");
         System.out.println(" Escribe 'login' o 'registrar' para iniciar sesión.");
+        System.out.println(" Grupos: /crear [nombre] | /unirse [nombre] | /borrar [nombre] | /grupos");
         System.out.println(" Usa: /bloquear [usuario] | /desbloquear [usuario]");
         System.out.println(" Usa: /verbloqueados");
         System.out.println(" Usa: @[usuario] [mensaje] para privado");
