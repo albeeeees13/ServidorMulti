@@ -248,12 +248,21 @@ public class UnCliente implements Runnable {
     }
 
     private void difundirMensajeAGrupo(String emisor, String contenido) throws IOException {
+        // 1. Almacenar el mensaje offline para todos los miembros del grupo (conectados o no)
         almacenarMensaje(grupoActual, emisor, contenido);
 
+        // 2. Obtener los clientes CONECTADOS
         for (UnCliente cliente : ServidorMulti.clientes.values()) {
             if (cliente.username != null) {
 
-                if (cliente != this && cliente.grupoActual.equals(this.grupoActual)) {
+                // --- CORRECCIÓN ---
+                // Se añadió una comprobación (cliente.grupoActual != null)
+                // para evitar una NullPointerException si un cliente tiene un grupo nulo.
+                if (cliente != this &&
+                        cliente.grupoActual != null &&
+                        cliente.grupoActual.equals(this.grupoActual)) {
+                    // --- FIN DE LA CORRECCIÓN ---
+
                     try {
                         if (!BloqueoManager.estaBloqueado(cliente.username, emisor)) {
                             cliente.salida.writeUTF(String.format("[%s] %s: %s", grupoActual, emisor, contenido));
@@ -263,6 +272,7 @@ public class UnCliente implements Runnable {
                     }
                 }
             } else {
+                // Mensajes de anónimos solo se difunden si el grupo es 'Todos'
                 if (grupoActual.equals("Todos")) {
                     cliente.salida.writeUTF(String.format("[%s] %s: %s", grupoActual, emisor, contenido));
                 }
