@@ -1,4 +1,5 @@
 package clientemulti;
+
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -15,17 +16,38 @@ public class ParaMandar implements Runnable {
         this.salida = new DataOutputStream(s.getOutputStream());
     }
 
+    private void mostrarAyuda() {
+        System.out.println("\n--- Comandos disponibles ---");
+        System.out.println(" Escribe 'login' o 'registrar' para iniciar sesión.");
+        System.out.println(" Grupos: /crear [nombre] | /unirse [nombre] | /borrar [nombre] | /grupos");
+        System.out.println(" Usa: /bloquear [usuario] | /desbloquear [usuario]");
+        System.out.println(" Usa: /verbloqueados");
+        System.out.println(" Usa: @[usuario] [mensaje] para privado");
+        System.out.println(" Ranking: /ranking | /estadistica [usuario]");
+        System.out.println(" Juego Gato: /jugar [usuario] | /aceptar | /mover [0-8] | /tablero");
+        System.out.println(" Escribe '/salir' para desconectar.");
+        System.out.println("---------------------------\n");
+    }
+
     @Override
     public void run() {
+        mostrarAyuda();
         try {
             while (true) {
+                System.out.print("> ");
+
                 String mensaje = teclado.readLine();
                 if (mensaje == null) break;
+
+                if (mensaje.equalsIgnoreCase("/ayuda") || mensaje.equalsIgnoreCase("comandos")) {
+                    mostrarAyuda();
+                    continue;
+                }
 
                 salida.writeUTF(mensaje);
                 salida.flush();
 
-                if ("salir".equalsIgnoreCase(mensaje)) {
+                if ("/salir".equalsIgnoreCase(mensaje)) {
                     System.out.println("Cerrando conexión...");
                     socket.close();
                     break;

@@ -1,3 +1,4 @@
+
 package servidormulti;
 
 import java.sql.Connection;
@@ -8,6 +9,7 @@ public class ConexionBD {
     private static final String URL = "jdbc:sqlite:servidor.db";
 
     public static Connection getConnection() throws SQLException {
+
         return DriverManager.getConnection(URL);
     }
 }
