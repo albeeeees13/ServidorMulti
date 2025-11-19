@@ -25,7 +25,7 @@ public class ParaMandar implements Runnable {
         System.out.println(" Usa: @[usuario] [mensaje] para privado");
         System.out.println(" Ranking: /ranking | /estadistica [usuario]");
         System.out.println(" Juego Gato: /jugar [usuario] | /aceptar | /mover [0-8] | /tablero");
-        System.out.println(" Escribe 'salir' para desconectar.");
+        System.out.println(" Escribe '/salir' para desconectar.");
         System.out.println("---------------------------\n");
     }
 
@@ -47,7 +47,7 @@ public class ParaMandar implements Runnable {
                 salida.writeUTF(mensaje);
                 salida.flush();
 
-                if ("salir".equalsIgnoreCase(mensaje)) {
+                if ("/salir".equalsIgnoreCase(mensaje)) {
                     System.out.println("Cerrando conexión...");
                     socket.close();
                     break;
