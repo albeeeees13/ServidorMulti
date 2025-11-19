@@ -27,3 +27,8 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### --- BASE DE DATOS (AGREGADO) --- ###
+servidor.db
+*.db
+*.sqlite
